@@ -1,10 +1,16 @@
 package cn.edu.buaa.wangye.liuyanbaike;
 
+import android.content.Intent;
 import android.os.Handler;
 import android.os.Message;
+import android.support.v4.widget.SwipeRefreshLayout;
 import android.support.v7.app.ActionBarActivity;
 import android.os.Bundle;
 import android.text.Html;
+import android.view.GestureDetector;
+import android.view.MenuItem;
+import android.view.MotionEvent;
+import android.view.View;
 import android.widget.TextView;
 
 import org.jsoup.Jsoup;
@@ -22,6 +28,7 @@ public class MainDetailActivity extends ActionBarActivity {
     private String con;
     private TextView content;
     private String contentText;
+    private SwipeRefreshLayout swipeView;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -31,7 +38,22 @@ public class MainDetailActivity extends ActionBarActivity {
         title = getIntent().getStringExtra("title");
         con = getIntent().getStringExtra("con");
         setTitle("["+con+"]"+title);
+        getSupportActionBar().setDisplayHomeAsUpEnabled(true);
+        swipeView = (SwipeRefreshLayout) findViewById(R.id.swipe);
         content = (TextView)findViewById(R.id.textView);
+        swipeView.setOnRefreshListener(new SwipeRefreshLayout.OnRefreshListener() {
+            @Override
+            public void onRefresh() {
+                swipeView.setRefreshing(true);
+                (new Handler()).postDelayed(new Runnable() {
+                    @Override
+                    public void run() {
+                        loadDataThread();
+                    }
+                }, 0);
+            }
+        });
+
         loadDataThread();
     }
 
@@ -39,11 +61,13 @@ public class MainDetailActivity extends ActionBarActivity {
         @Override
         public void handleMessage(Message msg) {
             content.setText(Html.fromHtml(contentText));
+            swipeView.setRefreshing(false);
             super.handleMessage(msg);
         }
     };
 
     private void loadDataThread(){
+        swipeView.setRefreshing(true);
         new Thread(new Runnable() {
             @Override
             public void run() {
@@ -70,6 +94,16 @@ public class MainDetailActivity extends ActionBarActivity {
         } catch (IOException e) {
             // TODO Auto-generated catch block
             e.printStackTrace();
+        }
+    }
+
+    @Override
+    public boolean onOptionsItemSelected(MenuItem item) {
+        switch (item.getItemId()) {
+            case android.R.id.home:
+                this.finish();
+            default:
+                return super.onOptionsItemSelected(item);
         }
     }
 

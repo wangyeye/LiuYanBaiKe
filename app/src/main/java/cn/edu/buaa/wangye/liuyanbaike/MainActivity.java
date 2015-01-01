@@ -3,6 +3,7 @@ package cn.edu.buaa.wangye.liuyanbaike;
 import android.content.Intent;
 import android.os.Handler;
 import android.os.Message;
+import android.support.v4.widget.SwipeRefreshLayout;
 import android.support.v7.app.ActionBarActivity;
 import android.os.Bundle;
 import android.view.View;
@@ -26,6 +27,7 @@ public class MainActivity extends ActionBarActivity {
     private int page = 1;
     private ListView listView;
     private ListViewAdapter adapter;
+    private SwipeRefreshLayout swipeView;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -34,6 +36,7 @@ public class MainActivity extends ActionBarActivity {
         setTitle("流言百科");
         feedList = new ArrayList<>();
         listView = (ListView)findViewById(R.id.listView);
+        swipeView = (SwipeRefreshLayout) findViewById(R.id.swipe);
         adapter = new ListViewAdapter(this, feedList);
         listView.setAdapter(adapter);
         listView.setOnScrollListener(new AbsListView.OnScrollListener() {
@@ -71,6 +74,19 @@ public class MainActivity extends ActionBarActivity {
 
             }
         });
+        swipeView.setOnRefreshListener(new SwipeRefreshLayout.OnRefreshListener() {
+            @Override
+            public void onRefresh() {
+                swipeView.setRefreshing(true);
+                (new Handler()).postDelayed(new Runnable() {
+                    @Override
+                    public void run() {
+                        page = 1;
+                        refreshDataThread();
+                    }
+                }, 0);
+            }
+        });
         loadDataThread();
     }
 
@@ -79,11 +95,13 @@ public class MainActivity extends ActionBarActivity {
         public void handleMessage(Message msg) {
             System.out.println("myHandler");
             adapter.notifyDataSetChanged();
+            swipeView.setRefreshing(false);
             super.handleMessage(msg);
         }
     };
 
     private void loadDataThread(){
+        swipeView.setRefreshing(true);
         new Thread(new Runnable() {
             @Override
             public void run() {
@@ -92,7 +110,16 @@ public class MainActivity extends ActionBarActivity {
             }
         }).start();
     }
-
+    private void refreshDataThread(){
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                feedList.clear();
+                feedList.addAll(loadData(page));
+                myHandler.sendEmptyMessage(0);
+            }
+        }).start();
+    }
 
     private List<FeedItem> loadData(int page){
         List<FeedItem> feedList = new ArrayList<>();
