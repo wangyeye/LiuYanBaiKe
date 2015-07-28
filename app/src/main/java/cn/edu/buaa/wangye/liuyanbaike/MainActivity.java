@@ -1,12 +1,22 @@
 package cn.edu.buaa.wangye.liuyanbaike;
 
+import android.app.SearchManager;
+import android.content.Context;
 import android.content.Intent;
+import android.graphics.Point;
 import android.os.Handler;
 import android.os.Message;
+import android.support.v4.view.MenuItemCompat;
 import android.support.v4.widget.SwipeRefreshLayout;
 import android.support.v7.app.ActionBarActivity;
 import android.os.Bundle;
+import android.support.v7.widget.SearchView;
+import android.view.Menu;
+import android.view.MenuInflater;
+import android.view.MenuItem;
 import android.view.View;
+import android.view.ViewGroup;
+import android.view.inputmethod.InputMethodManager;
 import android.widget.AbsListView;
 import android.widget.AdapterView;
 import android.widget.ListView;
@@ -17,6 +27,7 @@ import org.jsoup.nodes.Element;
 import org.jsoup.select.Elements;
 
 import java.io.IOException;
+import java.net.URLEncoder;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -28,6 +39,9 @@ public class MainActivity extends ActionBarActivity {
     private ListView listView;
     private ListViewAdapter adapter;
     private SwipeRefreshLayout swipeView;
+    private String url;
+    private boolean isSearching = false;
+    private String keyword;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -88,7 +102,62 @@ public class MainActivity extends ActionBarActivity {
             }
         });
         loadDataThread();
+
     }
+
+    @Override
+    public boolean onCreateOptionsMenu(Menu menu) {
+        MenuInflater inflater = getMenuInflater();
+        // Inflate menu to add items to action bar if it is present.
+        inflater.inflate(R.menu.menu_main, menu);
+        MenuItem searchItem = menu.findItem(R.id.menu_search);
+        //SearchView searchView = (SearchView) searchItem.getActionView();
+        SearchView searchView = (SearchView) MenuItemCompat.getActionView(searchItem);
+
+        searchView.setOnQueryTextListener(new SearchView.OnQueryTextListener() {
+            @Override
+            public boolean onQueryTextSubmit(String query) {
+                // TODO : query is the text from the search view
+                // after you clicked search
+                System.out.println(query);
+                keyword = query;
+                isSearching = true;
+                page = 1;
+                refreshDataThread();
+                InputMethodManager imm = (InputMethodManager) getApplicationContext().getSystemService(Context.INPUT_METHOD_SERVICE);
+                imm.toggleSoftInput(0, InputMethodManager.HIDE_NOT_ALWAYS);
+                return true;
+            }
+
+            @Override
+            public boolean onQueryTextChange(String newText) {
+                // TODO : newText is the text from the search view
+                // (event triggered every time the text changes)
+                // search(newText);
+                return false;
+            }
+        });
+        searchView.setOnCloseListener(new SearchView.OnCloseListener() {
+            @Override
+            public boolean onClose() {
+                page = 1;
+                setTitle("流言百科");
+                isSearching = false;
+                refreshDataThread();
+                return false;
+            }
+        });
+        searchView.setOnSearchClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                setTitle("");
+            }
+        });
+        return true;
+    }
+
+
+
 
     Handler myHandler = new Handler(){
         @Override
@@ -105,7 +174,11 @@ public class MainActivity extends ActionBarActivity {
         new Thread(new Runnable() {
             @Override
             public void run() {
-                feedList.addAll(loadData(page));
+                if(isSearching) {
+                    feedList.addAll(loadSearchData(page, keyword));
+                }else{
+                    feedList.addAll(loadDefaultData(page));
+                }
                 myHandler.sendEmptyMessage(0);
             }
         }).start();
@@ -115,16 +188,22 @@ public class MainActivity extends ActionBarActivity {
             @Override
             public void run() {
                 feedList.clear();
-                feedList.addAll(loadData(page));
+                if(isSearching){
+                    feedList.addAll(loadSearchData(page, keyword));
+                }else{
+                    feedList.addAll(loadDefaultData(page));
+                }
+
+
                 myHandler.sendEmptyMessage(0);
             }
         }).start();
     }
 
-    private List<FeedItem> loadData(int page){
+    private List<FeedItem> loadDefaultData(int page){
         List<FeedItem> feedList = new ArrayList<>();
         String rs = null;
-        String url = "http://www.liuyanbaike.com/category/?page="+page;
+        url = "http://www.liuyanbaike.com/category/?page="+page;
 
         Document doc;
         try {
@@ -147,5 +226,33 @@ public class MainActivity extends ActionBarActivity {
         }
         return feedList;
     }
+    private List<FeedItem> loadSearchData(int page, String keyword){
+        List<FeedItem> feedList = new ArrayList<>();
+        String rs = null;
+        url = "http://www.liuyanbaike.com/search/?page="+page+"&wd="+ URLEncoder.encode(keyword);
 
+        Document doc;
+        try {
+            doc = Jsoup.connect(url).timeout(60000).get();
+            Elements elements = doc.getElementsByClass("title");
+            for (Element element : elements){
+                //System.out.println(element);
+                FeedItem item = new FeedItem();
+                item.setCon(element.ownText().replace("]","").replace("[", ""));
+                item.setTitle(element.child(0).text());
+                item.setUrl("http://www.liuyanbaike.com"+element.child(0).attr("href"));
+                System.out.println(element.ownText().replace("]","").replace("[",""));
+                System.out.println(element.child(0).text());
+                System.out.println("http://www.liuyanbaike.com"+element.child(0).attr("href"));
+                feedList.add(item);
+            }
+
+
+
+        } catch (IOException e) {
+            // TODO Auto-generated catch block
+            e.printStackTrace();
+        }
+        return feedList;
+    }
 }
